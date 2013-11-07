@@ -1,0 +1,19 @@
+Map Network Drive: 
+    Command: 'net use z: \\l27\g8jp'
+    Directory: 'd:/'
+Weekly Script:
+    Planset 21:
+        Command: 'script_runner.jar'
+        User: 'AUTO21'
+        Yaml: 'genfcst'
+    Planset 22:
+        Command: 'script_runner.jar'
+        User: 'AUTO22'
+        Yaml: 'genfcst'
+    Planset 23:
+        Command: 'script_runner.jar'
+        User: 'AUTO23'
+        Yaml: 'genfcst'
+Delete Mapped Drive:
+    Command: 'net use z: /delete /YES'
+    Directory: d:/

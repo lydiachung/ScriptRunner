@@ -1,0 +1,36 @@
+settings:
+    user: AUTO21
+    exe: Prevail8.exe
+    dir: z:/
+tasks: 
+    -
+        lbl: map drive
+        cmd: 'net use z: \\l27\g8jp'
+        dir: d:/
+    -
+        -
+            lbl: gen fcst for whse 23
+            prg: gMdlFcstx
+            arg:
+                - 
+                    name: SettingLabel
+                    value: AUTO_WHSE23
+                - 
+                    name: SettingLabel
+                    value: AUTO_WHSE23
+        - 
+            lbl: gen fcst for whse 62
+            prg: gMdlFcstx
+            arg: SettingLabel='AUTO_WHSE62'
+        - 
+            lbl: gen fcst for whse 88
+            prg: gMdlFcstx
+            arg: SettingLabel='AUTO_WHSE88'
+        - 
+            lbl: gen fcst for whse 97
+            prg: gMdlFcstx
+            arg: SettingLabel='AUTO_WHSE97'
+    -
+        lbl: delete map drive
+        cmd: 'net use z: /delete /YES'
+        dir: d:/
