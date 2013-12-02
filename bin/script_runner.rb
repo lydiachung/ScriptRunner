@@ -2,8 +2,6 @@ require 'yaml'
 require 'tree'
 require 'job_runner'
 
-puts "file: #{File.dirname(__FILE__)}"
-
 require "#{File.dirname(__FILE__)}/txt_job_loggable"
 
 class ScriptRunner
@@ -14,14 +12,15 @@ class ScriptRunner
   
   def initialize()
     @cur_node_id = 0
-    @reserved_keywords = ["Command", "Directory", "Program", "User", "Serial", "Parallel", "Label"]
+    @reserved_keywords = ["Command", "Directory", "Program", "User", "Serial", "Parallel", "Label", "Log Directory", "Yaml"]
   end
   
   def run_script(o_root_job)
   
     write_log("INFO", "=" * 80)
     write_log("INFO", "Script started")
-  
+    
+    # TODO: for debug => o_root_job.node.print_tree
     o_root_job.run()
     
     write_log("INFO", "Script finished")
@@ -29,14 +28,25 @@ class ScriptRunner
     
   end
 
-  def setup(s_yaml_file)
+  def setup(h_input)
   
     begin
-
+    
+      # process h_input
+      h_in_settings = Hash.new()
+      h_input.each do |s_key, s_value|
+        h_in_settings[s_key[1..-1].capitalize] = s_value
+      end
+      
+      s_yaml_file = h_in_settings["Yaml"] # -yaml
+      
       raise "Yaml file name is not provided" if s_yaml_file.nil?
       
       h_config = YAML.load_file("app/#{s_yaml_file}.yml")
-      @log_file = File.join(Dir.pwd, "log", "#{s_yaml_file}.log")
+      h_config = h_in_settings.merge(h_config)
+      
+      @log_file = File.join(h_config["Log Directory"], "#{s_yaml_file}.log")
+      
       o_root_settings_node = create_settings_node("Root")
       parse_script(o_root_settings_node, h_config)
       process_settings(o_root_settings_node)
@@ -46,10 +56,17 @@ class ScriptRunner
       return o_root_job
       
     rescue Exception => o_exc
-      write_log("ERROR", "Batch job failed")
-      write_log("ERROR", o_exc.message)
-      write_log("ERROR", o_exc.inspect)
-      write_log("ERROR", o_exc.backtrace)
+      begin
+        write_log("ERROR", "Batch job failed")
+        write_log("ERROR", o_exc.message)
+        write_log("ERROR", o_exc.inspect)
+        write_log("ERROR", o_exc.backtrace)
+      rescue Exception => e
+        puts e.message
+      ensure 
+        puts o_exc.message
+      end
+      
       raise o_exc
     end
   end
@@ -107,7 +124,7 @@ class ScriptRunner
         o_set_node.content = o_par_set_node.content.merge(o_set_node.content) 
       end
       
-      o_job = create_job(o_set_node.node_height, o_set_node.content, @log_file)
+      o_job = create_job(o_set_node.node_height, o_set_node.content)
       o_job.node = o_node
       o_node.content = o_job
       o_root_job = o_job if o_node.is_root?
@@ -116,7 +133,7 @@ class ScriptRunner
     return o_root_job
   end
   
-  def create_job(n_node_height, h_settings, s_log_file)
+  def create_job(n_node_height, h_settings)
   
     case
     when n_node_height == 1 && h_settings["Command"] == "Prevail8.exe" # TODO: check more options, use regular expression
@@ -131,7 +148,7 @@ class ScriptRunner
       s_prg = h_settings["Program"]
       
       o_job = ScriptBasicJob.new()
-      o_job.log_file = s_log_file
+      o_job.log_file = @log_file
       
       a_args = Array.new()
       h_settings.each do |s_key, s_value|
@@ -143,10 +160,12 @@ class ScriptRunner
       # prevail always expects arg
       raise "Argument not found" if a_args.empty?
      
-      o_job.log_file = s_log_file
+      o_job.log_file = @log_file
       o_job.exec_cmd = %Q{#{s_cmd} #{s_user} #{s_prg} "#{a_args.join(" ")}"}
       o_job.exec_lbl = h_settings["Label"]
       o_job.work_dir = h_settings["Directory"]
+      
+      raise "Diretory not found: job = #{o_job.exec_lbl}, dir = #{o_job.work_dir}" unless File.directory? o_job.work_dir
       
     when n_node_height == 1
     
@@ -154,15 +173,19 @@ class ScriptRunner
       raise "Directory undefined" unless h_settings.key? "Directory"
       
       o_job = ScriptBasicJob.new()
-      o_job.log_file = s_log_file
-      o_job.exec_cmd = %x{#{s_cmd} 2>&1}
+      o_job.log_file = @log_file
+      o_job.exec_cmd = %x{#{h_settings["Command"]} 2>&1}
       o_job.exec_lbl = h_settings["Label"]
       o_job.work_dir = h_settings["Directory"]  
       
+      raise "Diretory not found: job = #{o_job.exec_lbl}, dir = #{o_job.work_dir}" unless File.directory? o_job.work_dir
+      
     when h_settings["Parallel"]
       o_job = ScriptParallelJob.new()
+      o_job.log_file = @log_file
     else
       o_job = ScriptSerialJob.new()
+      o_job.log_file = @log_file
     end
     
     return o_job
@@ -173,10 +196,27 @@ end
 
 class ScriptSerialJob
   include SerialJobbable
+  include TxtJobLoggable
+  
+  def error_raised(o_exc) # TODO: consolidate 
+    write_log("ERROR", "Batch job failed")
+    write_log("ERROR", o_exc.message)
+    write_log("ERROR", o_exc.inspect)
+    write_log("ERROR", o_exc.backtrace)
+  end
 end
 
 class ScriptParallelJob
   include ParallelJobbable
+  include TxtJobLoggable
+  
+  def error_raised(o_exc)
+    write_log("ERROR", "Batch job failed")
+    write_log("ERROR", o_exc.message)
+    write_log("ERROR", o_exc.inspect)
+    write_log("ERROR", o_exc.backtrace)
+  end
+  
 end
 
 class ScriptBasicJob
@@ -191,12 +231,21 @@ class ScriptBasicJob
   
   def after_run(s_result)
     write_log("DEBUG", @exec_cmd)
-    write_log("INFO", s_result) 
+    write_log("INFO", "#{s_result}") 
     write_log("INFO", "#{@exec_lbl} finished")
+  end
+  
+  def error_raised(o_exc)
+    write_log("ERROR", "Batch job failed")
+    write_log("ERROR", o_exc.message)
+    write_log("ERROR", o_exc.inspect)
+    write_log("ERROR", o_exc.backtrace)
   end
 end
 
+o_input = Hash[*ARGV.flatten]
+
 o_runner = ScriptRunner.new()
-o_job = o_runner.setup(ARGV[0])
+o_job = o_runner.setup(o_input)
 o_runner.run_script(o_job)
 

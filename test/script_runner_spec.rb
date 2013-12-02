@@ -8,7 +8,9 @@ describe ScriptRunner do
   end
   
   context "basic check" do 
-  
+    
+    it "shoudl throw error if yaml file not found"
+    
     # TODO: it_behaves_like "job tree"
   
     it "should throw error if yaml file name is not provided" do 

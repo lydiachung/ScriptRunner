@@ -1,0 +1,10 @@
+Directory: 'd:\scriptrunner'
+Log Directory: 'd:/scriptrunner/log'
+
+Weekly Script:
+    Planset 21:
+        Command: 'java -jar script_runner.jar genfcst-parallel'
+    Planset 22:
+        Command: 'java -jar script_runner.jar genfcst-parallel'
+    Planset 23:
+        Command: 'java -jar script_runner.jar genfcst-parallel'
